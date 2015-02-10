@@ -1,0 +1,6 @@
+*.html
+*.pdf
+*_cache/
+*_files/
+cache/
+figure/

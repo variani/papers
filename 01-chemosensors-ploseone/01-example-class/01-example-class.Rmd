@@ -1,0 +1,55 @@
+---
+title: "Example 1: classification. Ziyatdinov et al. (2014) PLOSEONE"
+author: "Andrey Ziyatdinov"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: united
+    toc: true
+---
+
+## Libraries
+
+```{r inc}
+library(chemosensors)
+library(caret)
+```
+
+## A0.02, C0.5
+
+### Generate data
+
+```{r sim, cache = TRUE}
+set.seed(1)
+
+set <- c("A 0.02", "C 0.5")
+
+sc <- Scenario(T = set, nT = 100, V = set, nV = 100, randomize = TRUE)
+
+conc <- getConc(sc)
+cf <- sdata.frame(sc)
+
+sa <- SensorArray(num = 1:17, csd = 1, ssd = 1, dsd = 1)
+sdata <- predict(sa, conc = conc, cores = 2)
+
+df <- sdata.frame(sa, cf = cf, sdata = sdata, feature = "step")
+```
+
+```{r split, cache = TRUE}
+Xt <- as.matrix(subset(df, set == "T", select = snames(sa)))
+Xv <- as.matrix(subset(df, set == "V", select = snames(sa)))
+
+lab <- subset(df, set == "T", "lab", drop = TRUE)
+lab <- gsub(",| ", "", lab)
+Yt <- as.factor(lab)
+
+lab <- subset(df, set == "V", "lab", drop = TRUE)
+lab <- gsub(",| ", "", lab)
+Yv <- as.factor(lab)
+```
+
+```{r fit, cache = TRUE}
+fit <- train(Xt, Yt, method = "knn", tuneGrid = data.frame(.k = c(3, 5, 7, 9)),
+  trControl = trainControl(method = "cv", number = 10, repeats = 10),
+  preProcess = c("center", "scale", "pca"))
+```
