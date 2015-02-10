@@ -15,25 +15,42 @@ library(chemosensors)
 library(caret)
 ```
 
-## A0.02, C0.5
+```{r check}
+stopifnot(packageVersion("chemosensors") >= "0.7.9")
+```
 
-### Generate data
+## Parameters
+
+```{r}
+nT <- 100
+nV <- 100
+
+cores <- 2
+```
+
+
+## Generate data
 
 ```{r sim, cache = TRUE}
-set.seed(1)
+set.seed(123)
 
-set <- c("A 0.02", "C 0.5")
+set <- c("A 0.001, C 0.6", "A 0.003, C 0.4")
 
-sc <- Scenario(T = set, nT = 100, V = set, nV = 100, randomize = TRUE)
+sc <- Scenario(T = set, nT = nT, V = set, nV = nV, randomize = TRUE)
 
-conc <- getConc(sc)
+#conc <- getConc(sc)
+#cf <- sdata.frame(sc)
+
 cf <- sdata.frame(sc)
+conc <- getConc(sc, cf = cf)
 
 sa <- SensorArray(num = 1:17, csd = 1, ssd = 1, dsd = 1)
-sdata <- predict(sa, conc = conc, cores = 2)
+sdata <- predict(sa, conc = conc, cores = cores)
 
 df <- sdata.frame(sa, cf = cf, sdata = sdata, feature = "step")
 ```
+
+## Split data into two training and validation set
 
 ```{r split, cache = TRUE}
 Xt <- as.matrix(subset(df, set == "T", select = snames(sa)))
@@ -48,8 +65,63 @@ lab <- gsub(",| ", "", lab)
 Yv <- as.factor(lab)
 ```
 
-```{r fit, cache = TRUE}
-fit <- train(Xt, Yt, method = "knn", tuneGrid = data.frame(.k = c(3, 5, 7, 9)),
+## Train the model
+
+### Applied `best` rule
+
+```{r fit1, cache = TRUE}
+set.seed(1)
+fit1 <- train(Xt, Yt, method = "knn", tuneGrid = data.frame(.k = c(3, 5, 7, 9)),
   trControl = trainControl(method = "cv", number = 10, repeats = 10),
   preProcess = c("center", "scale", "pca"))
 ```
+
+```{r}
+fit1
+```
+
+### Applied `tolerance` criteria
+
+```{r fit2, cache = TRUE}
+set.seed(1)
+fit2 <- train(Xt, Yt, method = "knn", tuneGrid = data.frame(.k = c(3, 5, 7, 9)),
+  trControl = trainControl(method = "cv", number = 10, repeats = 10,
+    selectionFunction = "tolerance"),
+  preProcess = c("center", "scale", "pca"))
+```
+
+```{r}
+fit2
+```
+
+### Applied `oneSE` criteria
+
+```{r fit3, cache = TRUE}
+set.seed(1)
+fit3 <- train(Xt, Yt, method = "knn", tuneGrid = data.frame(.k = c(3, 5, 7, 9)),
+  trControl = trainControl(method = "cv", number = 10, repeats = 10,
+    selectionFunction = "oneSE"),
+  preProcess = c("center", "scale", "pca"))
+```
+
+```{r}
+fit3
+```
+
+
+
+
+## Check the prediction accuracy
+
+Training set:
+
+```{r}
+table(predict(fit, Xt), Yt)
+```
+
+Validation set:
+
+```{r}
+table(predict(fit, Xv), Yv)
+```
+
