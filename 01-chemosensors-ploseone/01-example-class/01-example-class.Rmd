@@ -6,6 +6,8 @@ output:
   html_document:
     theme: united
     toc: true
+  md_document:
+    variant: markdown_github
 ---
 
 ## Libraries
@@ -16,17 +18,28 @@ library(caret)
 ```
 
 ```{r check}
-stopifnot(packageVersion("chemosensors") >= "0.7.9")
+if(packageVersion("chemosensors") < "0.7.9") {
+  warning("chemosensors >= 0.7.9 is preferred")
+}
 ```
 
 ## Parameters
 
 ```{r}
-nT <- 100
-nV <- 100
+nT <- 30
+nV <- 30
 
 cores <- 2
 ```
+
+## Notes
+
+* The use of `seed` command is suggested for reproducibility of the results.
+    * `set.seed(123)` command in the code block of data generation (simulation).
+    * `set.seed(1)` command in the code block of fitting the models `fit1`, etc
+      (the process of model fitting involves some resampling procedures)
+* Selection of the best tunning parameters in `caret` package 
+  might be controled by `selectionFunction` variable in `trControl` argument.
 
 
 ## Generate data
@@ -38,16 +51,35 @@ set <- c("A 0.001, C 0.6", "A 0.003, C 0.4")
 
 sc <- Scenario(T = set, nT = nT, V = set, nV = nV, randomize = TRUE)
 
+### not working code, because concentration in `conc` and `cf` were generated and randomized
+# independently (`randomize = TRUE` in scenario)
+# solution: generate concentrations once in `cf` and read them out from `cf` to `conc`
+# (`cf` is prefered, since it contains training/validation labels from scenario object `sc`
 #conc <- getConc(sc)
 #cf <- sdata.frame(sc)
 
+### working code for `packageVersion("chemosensors") >= "0.7.9"`
+#cf <- sdata.frame(sc)
+#conc <- getConc(sc, cf = cf)
+
+### working code for `packageVersion("chemosensors") < "0.7.9"`
 cf <- sdata.frame(sc)
-conc <- getConc(sc, cf = cf)
+conc <- subset(cf, select = gnames(sc))
 
 sa <- SensorArray(num = 1:17, csd = 1, ssd = 1, dsd = 1)
 sdata <- predict(sa, conc = conc, cores = cores)
 
 df <- sdata.frame(sa, cf = cf, sdata = sdata, feature = "step")
+```
+
+## Plot all the data
+
+```{r plotPCA}
+plotPCA(sa, conc = conc, sdata = sdata)
+```
+
+```{r plotPCA2}
+plotPCA(sa, conc = conc, sdata = sdata, air = FALSE)
 ```
 
 ## Split data into two training and validation set
@@ -65,6 +97,13 @@ lab <- gsub(",| ", "", lab)
 Yv <- as.factor(lab)
 ```
 
+## Plot data in training/validation sets
+
+```{r pca}
+scoreplot(prcomp(Xt), col = factor(Yt), main = "Training set `Xt`")
+scoreplot(prcomp(Xv), col = factor(Yv), main = "Training set `Xv`")
+```
+
 ## Train the model
 
 ### Applied `best` rule
@@ -80,7 +119,12 @@ fit1 <- train(Xt, Yt, method = "knn", tuneGrid = data.frame(.k = c(3, 5, 7, 9)),
 fit1
 ```
 
-### Applied `tolerance` criteria
+```{r plot_fit1}
+plot(fit1)
+```
+
+
+### Applied `tolerance` rule
 
 ```{r fit2, cache = TRUE}
 set.seed(1)
@@ -94,7 +138,7 @@ fit2 <- train(Xt, Yt, method = "knn", tuneGrid = data.frame(.k = c(3, 5, 7, 9)),
 fit2
 ```
 
-### Applied `oneSE` criteria
+### Applied `oneSE` rule
 
 ```{r fit3, cache = TRUE}
 set.seed(1)
@@ -109,19 +153,41 @@ fit3
 ```
 
 
-
-
 ## Check the prediction accuracy
 
 Training set:
 
 ```{r}
-table(predict(fit, Xt), Yt)
+table(predict(fit1, Xt), Yt)
 ```
 
 Validation set:
 
 ```{r}
-table(predict(fit, Xv), Yv)
+table(predict(fit1, Xv), Yv)
+```
+
+Accuracy:
+
+```{r}
+tab.t <- table(predict(fit1, Xt), Yt)
+acc.t <- sum(diag(tab.t)) / sum(tab.t)
+acc.t
+```
+
+```{r}
+tab.v <- table(predict(fit1, Xv), Yv)
+acc.v <- sum(diag(tab.v)) / sum(tab.v)
+acc.v
+```
+
+Note that the prediction accuracy in trainig set `acc.t` 
+is different from that reported by the model `fit1`.
+The accuracy measures in `fit1` were evaluated with resampling.
+
+## R session info
+
+```{r} 
+sessionInfo()
 ```
 
