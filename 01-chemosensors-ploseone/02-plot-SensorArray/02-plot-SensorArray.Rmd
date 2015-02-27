@@ -1,0 +1,129 @@
+---
+title: "Plot methods applied to `SensorArray` class"
+author: "Andrey Ziyatdinov"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: united
+    toc: true
+    keep_md: true
+---
+
+```{r chunk_opt, echo = FALSE}
+opts_chunk$set(fig.path = "figure/")
+```
+
+
+## Libraries
+
+```{r inc}
+library(chemosensors)
+```
+
+## Default plot method
+
+```{r sa_default_plot, cache = TRUE}
+sa <- SensorArray(nsensors = 17)
+plot(sa) # the same as `plotPolar(sa)`
+```
+
+The default plot method for `SensorArray` object is `plotPolar`.
+The concentration values come from `concMax` method.
+
+```{r}
+concMax(sa)
+```
+
+## Custom code to replicate polar plot
+
+```{r polar}
+set <- c("A", "B", "C")
+sc <- Scenario(set)
+conc <- getConc(sc)
+conc
+```
+
+Note that the values in `conc` concentration matrix are the same as output of `concMax` method.
+
+Now let's get the sensor array `sa` response.
+The noise has to be suppressed, in order to replicate the results of `plotPolar`.
+
+```{r, cache = TRUE}
+sa0 <- sa
+nsd(sa0) <- 0
+sdata <- predict(sa0, conc)
+sdata
+```
+
+Now we need to prepare a data.frame for plotting.
+
+```{r}
+df <- sdata.frame(sa, conc = conc, sdata = sdata, feature = "step")
+df
+```
+
+Note that the same sensor array data might by obtained by an appropriate indexing of `sdata` matrix.
+
+```{r}
+ind <- seq(2, 6, by = 2)
+ind
+sdata[ind, ]
+```
+
+Do some data manipulation.
+
+```{r}
+snames <- grep("^S", names(df), value = TRUE)
+df <- df[, c(snames, "lab")]
+```
+
+```{r melt}
+mf <- melt(df, id.vars = "lab")
+head(mf)
+```
+
+```{r lines}
+p1 <- ggplot(mf, aes(variable, value, group = lab, color = lab)) + geom_line()
+p1
+```
+
+```{r lines_polar}
+p2 <- p1 + coord_polar()
+p2
+```
+
+## Other plots 
+
+### `plotResponse`
+
+```{r}
+if(packageVersion("chemosensors") < "0.7.10") {
+  warning("plotResponse correctly works in chemosensors >= 0.7.10")
+}
+```
+
+```{r}
+idx(sa)
+```
+
+```{r plotResponse}
+plotResponse(sa)
+plotResponse(sa, sensor = 8)
+plotResponse(sa, gas = c("A", "B"), sensor = 11)
+```
+
+### `plotBox`
+
+```{r plotBox}
+set <- rep(c("A 0.001", "A 0.01", "A 0.05", "A"), 5)
+plotBox(sa, set = set)
+plotBox(sa, set = set, scales = "free_y")
+```
+
+
+## R session info
+
+```{r} 
+sessionInfo()
+```
+
